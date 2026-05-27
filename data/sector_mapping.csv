@@ -1,0 +1,34 @@
+ticker,sector
+VCB,Bank
+BID,Bank
+CTG,Bank
+TCB,Bank
+MBB,Bank
+ACB,Bank
+SSI,Securities
+VND,Securities
+HCM,Securities
+VCI,Securities
+VHM,Real Estate
+KDH,Real Estate
+NLG,Real Estate
+DXG,Real Estate
+HPG,Steel
+HSG,Steel
+NKG,Steel
+FPT,Technology
+CMG,Technology
+MWG,Retail
+FRT,Retail
+GAS,Oil & Gas
+PVD,Oil & Gas
+PVS,Oil & Gas
+KBC,Industrial Park
+IDC,Industrial Park
+SZC,Industrial Park
+VNM,Consumer
+MSN,Consumer
+SAB,Consumer
+REE,Utilities
+POW,Utilities
+GEX,Utilities
