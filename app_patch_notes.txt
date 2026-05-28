@@ -1,0 +1,24 @@
+CHANGES REQUIRED IN app.py
+
+1. Replace all:
+use_container_width=True
+
+with:
+width="stretch"
+
+2. Replace cache decorator:
+
+@st.cache_data(ttl=300)
+
+with:
+
+@st.cache_data(
+    ttl=300,
+    show_spinner="Đang tải dữ liệu live..."
+)
+
+3. Add latest data source display:
+
+st.caption(
+    f"Dữ liệu cập nhật đến: {latest_date}"
+)
