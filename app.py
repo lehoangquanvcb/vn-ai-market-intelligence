@@ -9,11 +9,26 @@ from src.data_loader import (
     load_macro_assumptions,
     make_synthetic_fundamentals,
 )
-from src.features import add_market_features, latest_stock_features
-from src.models import train_market_classifier, predict_market
-from src.scoring import score_stocks, score_sectors
-from src.utils import make_commentary, traffic_light
 
+from src.features import (
+    add_market_features,
+    latest_stock_features,
+)
+
+from src.models import (
+    train_market_classifier,
+    predict_market,
+)
+
+from src.scoring import (
+    score_stocks,
+    score_sectors,
+)
+
+from src.utils import (
+    make_commentary,
+    traffic_light,
+)
 
 st.set_page_config(
     page_title="VN AI-First Market Intelligence",
@@ -22,44 +37,110 @@ st.set_page_config(
 )
 
 st.title("📈 VN AI-First Market Intelligence")
-st.caption("VNINDEX forecasting • Sector ranking • Stock screener • Risk regime")
+
+st.caption(
+    "VNINDEX forecasting • Sector ranking • Stock screener • Risk regime"
+)
 
 with st.sidebar:
+
     st.header("Thiết lập mô hình")
 
-    horizon = st.selectbox("Horizon", ["20 phiên", "60 phiên"], index=0)
-    top_n = st.slider("Số cổ phiếu hiển thị", 5, 30, 15)
+    horizon = st.selectbox(
+        "Horizon",
+        ["20 phiên", "60 phiên"],
+        index=0,
+    )
+
+    top_n = st.slider(
+        "Số cổ phiếu hiển thị",
+        5,
+        30,
+        15,
+    )
 
     st.info(
-        "VNINDEX ưu tiên lấy live từ vnstock đến ngày gần nhất. "
-        "Dữ liệu cổ phiếu/fundamentals hiện dùng fallback để app chạy ổn định trên Streamlit Cloud."
+        "VNINDEX dùng dữ liệu live từ vnstock Quote API. "
+        "Nếu nguồn dữ liệu lỗi, app sẽ báo lỗi thay vì hiển thị số giả."
     )
 
 
-@st.cache_data(ttl=300, show_spinner="Đang tải dữ liệu live và huấn luyện mô hình...")
+@st.cache_data(
+    ttl=300,
+    show_spinner="Đang tải dữ liệu VNINDEX live..."
+)
 def load_all():
+
     sector_map = load_sector_mapping()
-    tickers = sector_map["ticker"].dropna().unique().tolist()
+
+    tickers = (
+        sector_map["ticker"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
 
     vnindex = load_vnindex()
-    stock_prices = load_stock_prices(tickers)
-    macro = load_macro_assumptions()
-    fundamentals = make_synthetic_fundamentals(tickers)
 
-    return vnindex, stock_prices, macro, fundamentals, sector_map
+    stock_prices = load_stock_prices(tickers)
+
+    macro = load_macro_assumptions()
+
+    fundamentals = make_synthetic_fundamentals(
+        tickers
+    )
+
+    return (
+        vnindex,
+        stock_prices,
+        macro,
+        fundamentals,
+        sector_map,
+    )
 
 
 try:
-    vnindex, stock_prices, macro, fundamentals, sector_map = load_all()
 
-    market_features = add_market_features(vnindex)
-    model, metrics = train_market_classifier(market_features)
-    market_view = predict_market(model, market_features)
+    (
+        vnindex,
+        stock_prices,
+        macro,
+        fundamentals,
+        sector_map,
+    ) = load_all()
 
-    stock_features = latest_stock_features(stock_prices)
+    latest_date = pd.to_datetime(
+        vnindex["date"].max()
+    ).strftime("%d/%m/%Y")
+
+    data_source = str(
+        vnindex.iloc[-1].get(
+            "data_source",
+            "unknown"
+        )
+    )
+
+    market_features = add_market_features(
+        vnindex
+    )
+
+    model, metrics = train_market_classifier(
+        market_features
+    )
+
+    market_view = predict_market(
+        model,
+        market_features,
+    )
+
+    stock_features = latest_stock_features(
+        stock_prices
+    )
 
     vn_ret20 = float(
-        market_features.sort_values("date").iloc[-1]["ret_20d"]
+        market_features
+        .sort_values("date")
+        .iloc[-1]["ret_20d"]
     )
 
     scored_stocks = score_stocks(
@@ -69,8 +150,16 @@ try:
         vn_ret20,
     )
 
-    sector_scores = score_sectors(scored_stocks)
-    top_sectors = sector_scores["sector"].head(3).astype(str).tolist()
+    sector_scores = score_sectors(
+        scored_stocks
+    )
+
+    top_sectors = (
+        sector_scores["sector"]
+        .head(3)
+        .astype(str)
+        .tolist()
+    )
 
     commentary = make_commentary(
         market_view["prob_up_20d"],
@@ -78,17 +167,43 @@ try:
         top_sectors,
     )
 
-    latest_date = pd.to_datetime(vnindex["date"].max()).strftime("%d/%m/%Y")
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
 
-    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric(
+        "VNINDEX",
+        f"{market_view['vnindex']:,.0f}",
+    )
 
-    k1.metric("VNINDEX", f"{market_view['vnindex']:,.0f}")
-    k2.metric("Xác suất tăng 20 phiên", f"{market_view['prob_up_20d']:.1%}")
-    k3.metric("Regime", market_view["regime"])
-    k4.metric("Tín hiệu", traffic_light(market_view["prob_up_20d"] * 100))
-    k5.metric("Data latest", latest_date)
+    k2.metric(
+        "Xác suất tăng 20 phiên",
+        f"{market_view['prob_up_20d']:.1%}",
+    )
 
-    st.markdown(f"**Nhận định tự động:** {commentary}")
+    k3.metric(
+        "Regime",
+        market_view["regime"],
+    )
+
+    k4.metric(
+        "Tín hiệu",
+        traffic_light(
+            market_view["prob_up_20d"] * 100
+        ),
+    )
+
+    k5.metric(
+        "Latest Data",
+        latest_date,
+    )
+
+    k6.metric(
+        "Data Source",
+        data_source,
+    )
+
+    st.markdown(
+        f"**Nhận định tự động:** {commentary}"
+    )
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "1. VNINDEX Forecast",
@@ -99,30 +214,43 @@ try:
     ])
 
     with tab1:
-        st.subheader("VNINDEX Forecast & Regime")
+
+        st.subheader(
+            "VNINDEX Forecast & Regime"
+        )
 
         c1, c2 = st.columns([2, 1])
 
         with c1:
+
             fig = px.line(
                 vnindex.sort_values("date"),
                 x="date",
                 y="close",
                 title=f"VNINDEX price history — latest data: {latest_date}",
             )
+
             fig.update_layout(
                 xaxis_title="Date",
                 yaxis_title="VNINDEX",
                 hovermode="x unified",
             )
-            st.plotly_chart(fig, use_container_width=True)
+
+            st.plotly_chart(
+                fig,
+                width="stretch",
+            )
 
         with c2:
-            st.markdown("### 📌 VNINDEX Forecast Summary")
+
+            st.markdown(
+                "### 📌 VNINDEX Forecast Summary"
+            )
 
             st.metric(
                 "Expected VNINDEX Range (20 phiên)",
-                f"{market_view['expected_lower']:,.0f} – {market_view['expected_upper']:,.0f}",
+                f"{market_view['expected_lower']:,.0f} – "
+                f"{market_view['expected_upper']:,.0f}",
             )
 
             acc = metrics.get("accuracy")
@@ -131,25 +259,41 @@ try:
             mc1, mc2 = st.columns(2)
 
             with mc1:
+
                 st.metric(
                     "Model Accuracy",
                     f"{acc:.1%}" if acc is not None else "N/A",
                 )
 
             with mc2:
+
                 st.metric(
                     "ROC-AUC",
                     f"{auc:.2f}" if auc is not None else "N/A",
                 )
 
             st.info(
-                "Feature set gồm: trend, momentum, volatility và liquidity indicators."
+                "Feature set gồm: trend, momentum, "
+                "volatility và liquidity indicators."
             )
-            st.caption(f"Dữ liệu VNINDEX cập nhật đến: {latest_date}")
+
+            st.caption(
+                f"Dữ liệu VNINDEX cập nhật đến: {latest_date}"
+            )
+
+            st.caption(
+                f"Nguồn dữ liệu: {data_source}"
+            )
 
     with tab2:
+
         st.subheader("Xếp hạng ngành")
-        st.dataframe(sector_scores, use_container_width=True, hide_index=True)
+
+        st.dataframe(
+            sector_scores,
+            width="stretch",
+            hide_index=True,
+        )
 
         fig = px.bar(
             sector_scores.head(10),
@@ -157,21 +301,35 @@ try:
             y="sector_score",
             title="Top sector scores",
         )
-        st.plotly_chart(fig, use_container_width=True)
+
+        st.plotly_chart(
+            fig,
+            width="stretch",
+        )
 
     with tab3:
-        st.subheader("Lọc cổ phiếu tiềm năng")
+
+        st.subheader(
+            "Lọc cổ phiếu tiềm năng"
+        )
 
         filters = st.multiselect(
             "Lọc theo ngành",
-            options=sorted(scored_stocks["sector"].dropna().unique().tolist()),
+            options=sorted(
+                scored_stocks["sector"]
+                .dropna()
+                .unique()
+                .tolist()
+            ),
             default=[],
         )
 
         view = scored_stocks.copy()
 
         if filters:
-            view = view[view["sector"].isin(filters)]
+            view = view[
+                view["sector"].isin(filters)
+            ]
 
         display_cols = [
             "ticker",
@@ -190,7 +348,7 @@ try:
 
         st.dataframe(
             view[display_cols].head(top_n),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -203,23 +361,35 @@ try:
             hover_name="ticker",
             title="Momentum vs AI Stock Score",
         )
-        st.plotly_chart(fig, use_container_width=True)
+
+        st.plotly_chart(
+            fig,
+            width="stretch",
+        )
 
     with tab4:
-        st.subheader("Macro assumptions")
+
+        st.subheader(
+            "Macro assumptions"
+        )
 
         st.dataframe(
-            macro.sort_values("date", ascending=False),
-            use_container_width=True,
+            macro.sort_values(
+                "date",
+                ascending=False,
+            ),
+            width="stretch",
             hide_index=True,
         )
 
         st.warning(
             "Các biến macro hiện là dữ liệu giả định/fallback. "
-            "Có thể thay bằng dữ liệu SBV, GSO, FiinPro, Bloomberg hoặc file Excel nội bộ."
+            "Có thể thay bằng dữ liệu SBV, GSO, "
+            "FiinPro, Bloomberg hoặc file Excel nội bộ."
         )
 
     with tab5:
+
         st.subheader("Model Notes")
 
         st.markdown(
@@ -230,27 +400,39 @@ Mô hình lấy cảm hứng từ cách tiếp cận AI-first finance:
 
 1. Không cố dự báo một điểm VNINDEX duy nhất.
 2. Dự báo xác suất thị trường tăng trong 20 phiên.
-3. Chuyển xác suất thành regime: Risk-on, Neutral, Risk-off.
+3. Chuyển xác suất thành regime:
+   Risk-on, Neutral, Risk-off.
 4. Dùng regime để điều chỉnh lựa chọn ngành/cổ phiếu.
-5. Ưu tiên quản trị rủi ro, tránh overfitting và look-ahead bias.
+5. Ưu tiên quản trị rủi ro,
+   tránh overfitting và look-ahead bias.
 
 ### Dữ liệu
 
-- VNINDEX: ưu tiên live từ vnstock.
+- VNINDEX: live từ vnstock Quote API.
 - Cổ phiếu: fallback/synthetic để app chạy nhanh trên Streamlit Cloud.
 - Fundamentals: fallback/synthetic.
 - Macro: file CSV giả định trong thư mục data.
 
 ### Cần nâng cấp thêm khi dùng thật
 
-- Thay dữ liệu fundamentals giả định bằng báo cáo tài chính thật.
-- Thêm dữ liệu khối ngoại, tự doanh, margin, breadth.
-- Thêm backtesting theo từng giai đoạn thị trường.
-- Thêm risk module: max drawdown, VaR, stop loss, position sizing.
-- Thêm explainability: SHAP hoặc feature importance.
+- Thay dữ liệu fundamentals giả định
+  bằng báo cáo tài chính thật.
+- Thêm dữ liệu khối ngoại,
+  tự doanh, margin, breadth.
+- Thêm backtesting theo từng
+  giai đoạn thị trường.
+- Thêm risk module:
+  max drawdown, VaR,
+  stop loss, position sizing.
+- Thêm explainability:
+  SHAP hoặc feature importance.
 """
         )
 
 except Exception as e:
-    st.error("App gặp lỗi khi tải dữ liệu hoặc huấn luyện mô hình.")
+
+    st.error(
+        "Không tải được VNINDEX live data."
+    )
+
     st.exception(e)
